@@ -1,0 +1,72 @@
+mutation CreateDemoData @transaction @auth(level: USER, insecureReason: "This operation is for populating seed data and is safe for all authenticated users to execute.") {
+  user1: user_insert(data: {
+    id: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+    displayName: "Alice Smith",
+    email: "alice@example.com",
+    createdAt: "2023-01-01T10:00:00Z"
+  })
+  user2: user_insert(data: {
+    id: "b1f0e1a1-1c1d-4d2a-8b3c-7c7b7e7d7f7g",
+    displayName: "Bob Johnson",
+    email: "bob@example.com",
+    createdAt: "2023-01-02T11:00:00Z"
+  })
+  movie1: movie_insert(data: {
+    id: "c2d1f2a2-2d2e-4e3a-9c4d-8d8c8e8f8h8h",
+    title: "The Great Adventure",
+    releaseYear: 2022,
+    createdAt: "2023-01-03T12:00:00Z",
+    summary: "An epic tale of heroism and discovery.",
+    genres: ["Adventure", "Fantasy"],
+    runtimeMinutes: 120
+  })
+  movie2: movie_insert(data: {
+    id: "d3e2g3b3-3e3f-4f4b-ac5e-9e9d9f9g9i9i",
+    title: "Mystery in the Moonlight",
+    releaseYear: 2023,
+    createdAt: "2023-01-04T13:00:00Z",
+    summary: "A thrilling detective story.",
+    genres: ["Mystery", "Thriller"],
+    runtimeMinutes: 105
+  })
+  movieList1: movieList_insert(data: {
+    id: "e4f3h4c4-4f4g-4g5c-bd6f-a0a1a2a3a4a5",
+    userId: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+    name: "Alice's Favorites",
+    isPublic: true,
+    createdAt: "2023-01-05T14:00:00Z",
+    updatedAt: "2023-01-05T14:00:00Z",
+    description: "My top movie picks!"
+  })
+  movieListItem1: movieListItem_insert(data: {
+    movieListId: "e4f3h4c4-4f4g-4g5c-bd6f-a0a1a2a3a4a5",
+    movieId: "c2d1f2a2-2d2e-4e3a-9c4d-8d8c8e8f8h8h",
+    position: 1,
+    note: "Absolutely loved this one!"
+  })
+  movieListItem2: movieListItem_insert(data: {
+    movieListId: "e4f3h4c4-4f4g-4g5c-bd6f-a0a1a2a3a4a5",
+    movieId: "d3e2g3b3-3e3f-4f4b-ac5e-9e9d9f9g9i9i",
+    position: 2,
+    note: "Intriguing plot twists."
+  })
+  watch1: watch_insert(data: {
+    id: "f5g4i5d5-5g5h-4h6d-ce7g-b1b2b3b4b5b6",
+    userId: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+    movieId: "c2d1f2a2-2d2e-4e3a-9c4d-8d8c8e8f8h8h",
+    watchedAt: "2023-01-06T15:00:00Z",
+    createdAt: "2023-01-06T15:00:00Z",
+    location: "Home"
+  })
+  review1: review_insert(data: {
+    id: "g6h5j6e6-6h6i-4i7e-df8h-c2c3c4c5c6c7",
+    userId: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+    movieId: "c2d1f2a2-2d2e-4e3a-9c4d-8d8c8e8f8h8h",
+    watchId: "f5g4i5d5-5g5h-4h6d-ce7g-b1b2b3b4b5b6",
+    rating: 5,
+    isPublic: true,
+    createdAt: "2023-01-07T16:00:00Z",
+    updatedAt: "2023-01-07T16:00:00Z",
+    textReview: "A truly captivating film!"
+  })
+}

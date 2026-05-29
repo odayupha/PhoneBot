@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Rescue Control — GPS Sender</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Leaflet CSS for mini map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: #f8fafc;
+      color: #1e293b;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .header {
+      background: white;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-icon {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, #ea580c, #dc2626);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 18px;
+    }
+
+    .header h1 {
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .header p {
+      font-size: 11px;
+      color: #64748b;
+    }
+
+    .container {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .card {
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+
+    .card-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+    }
+
+    /* Status badge */
+    .status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .status-idle {
+      background: #f1f5f9;
+      color: #64748b;
+    }
+
+    .status-active {
+      background: #ecfdf5;
+      color: #059669;
+      border: 1px solid #a7f3d0;
+    }
+
+    .status-error {
+      background: #fef2f2;
+      color: #dc2626;
+      border: 1px solid #fecaca;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .status-active .status-dot {
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+
+      50% {
+        opacity: 0.5;
+        transform: scale(1.3);
+      }
+    }
+
+    /* Data grid */
+    .data-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .data-box {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 10px;
+      text-align: center;
+    }
+
+    .data-box .label {
+      font-size: 10px;
+      color: #94a3b8;
+      font-weight: 500;
+      text-transform: uppercase;
+    }
+
+    .data-box .value {
+      font-size: 18px;
+      font-weight: 700;
+      color: #1e293b;
+      margin-top: 2px;
+    }
+
+    .data-box.highlight {
+      background: #eff6ff;
+      border-color: #bfdbfe;
+    }
+
+    .data-box.highlight .value {
+      color: #2563eb;
+    }
+
+    /* Map */
+    #miniMap {
+      height: 200px;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+    }
+
+    /* Buttons */
+    .btn {
+      width: 100%;
+      padding: 16px;
+      border: none;
+      border-radius: 14px;
+      font-family: inherit;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+
+    .btn-start {
+      background: #2563eb;
+      color: white;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
+    }
+
+    .btn-start:hover {
+      background: #1d4ed8;
+    }
+
+    .btn-stop {
+      background: #dc2626;
+      color: white;
+      box-shadow: 0 4px 14px rgba(220, 38, 38, 0.3);
+    }
+
+    .btn-stop:hover {
+      background: #b91c1c;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Log */
+    .log {
+      max-height: 150px;
+      overflow-y: auto;
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      color: #64748b;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 10px;
+    }
+
+    .log-entry {
+      padding: 2px 0;
+      border-bottom: 1px solid #f1f5f9;
+    }
+
+    .log-ok {
+      color: #059669;
+    }
+
+    .log-err {
+      color: #dc2626;
+    }
+
+    /* Vehicle ID input */
+    .input-group {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .input-group input {
+      flex: 1;
+      padding: 10px 14px;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      background: #f8fafc;
+      color: #1e293b;
+    }
+
+    .input-group input:focus {
+      outline: none;
+      border-color: #2563eb;
+      background: white;
+    }
+
+    /* Interval selector */
+    .interval-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .interval-btn {
+      flex: 1;
+      padding: 8px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      background: #f8fafc;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      color: #64748b;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .interval-btn.active {
+      background: #2563eb;
+      color: white;
+      border-color: #2563eb;
+    }
+
+    .footer-note {
+      text-align: center;
+      font-size: 11px;
+      color: #94a3b8;
+      padding: 8px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-icon">🚨</div>
+    <div>
+      <h1>Rescue GPS Sender</h1>
+      <p>Kirim lokasi kendaraan rescue ke dashboard</p>
+    </div>
+  </div>
+
+  <div class="container">
+
+    <!-- Status -->
+    <div id="statusBar" class="status-bar status-idle">
+      <span class="status-dot"></span>
+      <span id="statusText">Siap mengirim</span>
+    </div>
+
+    <!-- Config -->
+    <div class="card">
+      <div class="card-title">⚙️ Konfigurasi</div>
+      <div class="input-group" style="margin-bottom: 10px;">
+        <label style="font-size: 12px; font-weight: 600; color: #475569; white-space: nowrap;">Vehicle ID:</label>
+        <input type="text" id="vehicleId" value="TRK-07" />
+      </div>
+      <div class="card-title" style="margin-top: 8px;">Interval Kirim</div>
+      <div class="interval-row">
+        <button class="interval-btn" data-interval="1000">1s</button>
+        <button class="interval-btn active" data-interval="3000">3s</button>
+        <button class="interval-btn" data-interval="5000">5s</button>
+        <button class="interval-btn" data-interval="10000">10s</button>
+      </div>
+    </div>
+
+    <!-- GPS Data -->
+    <div class="card">
+      <div class="card-title">📍 Data GPS</div>
+      <div class="data-grid">
+        <div class="data-box highlight">
+          <div class="label">Latitude</div>
+          <div class="value" id="latVal">—</div>
+        </div>
+        <div class="data-box highlight">
+          <div class="label">Longitude</div>
+          <div class="value" id="lonVal">—</div>
+        </div>
+        <div class="data-box">
+          <div class="label">Speed</div>
+          <div class="value" id="speedVal">—</div>
+        </div>
+        <div class="data-box">
+          <div class="label">Accuracy</div>
+          <div class="value" id="accVal">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mini Map -->
+    <div class="card">
+      <div class="card-title">🗺️ Posisi di Peta</div>
+      <div id="miniMap"></div>
+    </div>
+
+    <!-- Start/Stop Button -->
+    <button id="toggleBtn" class="btn btn-start" onclick="toggleTracking()">
+      ▶ Mulai Kirim GPS
+    </button>
+
+    <!-- Log -->
+    <div class="card">
+      <div class="card-title">📋 Log Pengiriman</div>
+      <div id="log" class="log">
+        <div class="log-entry">Siap. Tekan tombol untuk mulai.</div>
+      </div>
+    </div>
+
+    <div class="footer-note">
+      Data dikirim ke Firebase RTDB → Dashboard Rescue Control Center<br>
+      <a href="/" style="color: #ea580c; text-decoration: none; font-weight: 600;">← Buka Dashboard</a>
+    </div>
+
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Firebase SDK (CDN) -->
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js';
+    import { getDatabase, ref, update } from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-database.js';
+
+    // Firebase Config — sama dengan config.js
+    const firebaseConfig = {
+      apiKey: "AIzaSyAuPoG-PETHdW8DskMYsUsokTPdu5iEC0k",
+      authDomain: "smart-tracker-cca9d.firebaseapp.com",
+      databaseURL: "https://smart-tracker-cca9d-default-rtdb.firebaseio.com",
+      projectId: "smart-tracker-cca9d",
+      storageBucket: "smart-tracker-cca9d.appspot.com",
+      messagingSenderId: "G-VMS9C1T5QV",
+      appId: "1:1085339015056:web:6257b9770be79a1669c515"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    // ===== STATE =====
+    let isTracking = false;
+    let watchId = null;
+    let sendInterval = null;
+    let intervalMs = 3000;
+    let lastPosition = null;
+    let sendCount = 0;
+    let map = null;
+    let marker = null;
+
+    // ===== ELEMENTS =====
+    const statusBar = document.getElementById('statusBar');
+    const statusText = document.getElementById('statusText');
+    const toggleBtn = document.getElementById('toggleBtn');
+    const latVal = document.getElementById('latVal');
+    const lonVal = document.getElementById('lonVal');
+    const speedVal = document.getElementById('speedVal');
+    const accVal = document.getElementById('accVal');
+    const logDiv = document.getElementById('log');
+    const vehicleInput = document.getElementById('vehicleId');
+
+    // ===== MINI MAP INIT =====
+    map = L.map('miniMap').setView([-6.9, 110.4], 10);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OSM'
+    }).addTo(map);
+
+    // Truck icon
+    const truckIcon = L.divIcon({
+      html: '<div style="width:20px;height:20px;background:#2563eb;border:3px solid white;border-radius:50%;box-shadow:0 0 10px rgba(37,99,235,0.5);"></div>',
+      className: '',
+      iconSize: [20, 20],
+      iconAnchor: [10, 10],
+    });
+
+    // ===== INTERVAL SELECTOR =====
+    document.querySelectorAll('.interval-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.interval-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        intervalMs = parseInt(btn.dataset.interval);
+        addLog(`Interval diubah ke ${intervalMs / 1000}s`);
+
+        // Restart interval if tracking
+        if (isTracking && sendInterval) {
+          clearInterval(sendInterval);
+          sendInterval = setInterval(sendToFirebase, intervalMs);
+        }
+      });
+    });
+
+    // ===== GEOLOCATION =====
+    function startGPS() {
+      if (!navigator.geolocation) {
+        setStatus('error', 'GPS tidak didukung di browser ini');
+        return false;
+      }
+
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          lastPosition = {
+            lat: pos.coords.latitude,
+            lon: pos.coords.longitude,
+            speed: pos.coords.speed ? (pos.coords.speed * 3.6).toFixed(1) : 0, // m/s → km/h
+            accuracy: pos.coords.accuracy ? pos.coords.accuracy.toFixed(0) : '?',
+            heading: pos.coords.heading || 0,
+            altitude: pos.coords.altitude || 0,
+          };
+
+          // Update UI
+          latVal.textContent = lastPosition.lat.toFixed(6);
+          lonVal.textContent = lastPosition.lon.toFixed(6);
+          speedVal.textContent = lastPosition.speed + ' km/h';
+          accVal.textContent = lastPosition.accuracy + ' m';
+
+          // Update map
+          const latlng = [lastPosition.lat, lastPosition.lon];
+          if (marker) {
+            marker.setLatLng(latlng);
+          } else {
+            marker = L.marker(latlng, { icon: truckIcon }).addTo(map);
+          }
+          map.setView(latlng, 14);
+        },
+        (err) => {
+          setStatus('error', `GPS Error: ${err.message}`);
+          addLog(`❌ GPS Error: ${err.message}`, 'err');
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 2000,
+          timeout: 10000,
+        }
+      );
+
+      return true;
+    }
+
+    // ===== SEND TO FIREBASE =====
+    async function sendToFirebase() {
+      if (!lastPosition) {
+        addLog('⏳ Menunggu sinyal GPS...');
+        return;
+      }
+
+      const vehicleId = vehicleInput.value.trim() || 'TRK-07';
+      const gpsRef = ref(db, `vehicles/${vehicleId}/gps`);
+
+      const data = {
+        lat: lastPosition.lat,
+        lon: lastPosition.lon,
+        speed: parseFloat(lastPosition.speed) || 0,
+        heading: lastPosition.heading,
+        accuracy: parseFloat(lastPosition.accuracy) || 0,
+        timestamp: Date.now(),
+      };
+
+      try {
+        await update(gpsRef, data);
+        sendCount++;
+        addLog(`✅ #${sendCount} → lat=${data.lat.toFixed(4)}, lon=${data.lon.toFixed(4)}, spd=${data.speed}km/h`, 'ok');
+      } catch (err) {
+        addLog(`❌ Firebase Error: ${err.message}`, 'err');
+      }
+    }
+
+    // ===== TOGGLE TRACKING =====
+    window.toggleTracking = function () {
+      if (!isTracking) {
+        // START
+        const gpsStarted = startGPS();
+        if (!gpsStarted) return;
+
+        isTracking = true;
+        sendInterval = setInterval(sendToFirebase, intervalMs);
+        sendToFirebase(); // Send immediately
+
+        setStatus('active', 'Mengirim GPS...');
+        toggleBtn.textContent = '⏹ Stop Kirim GPS';
+        toggleBtn.className = 'btn btn-stop';
+        vehicleInput.disabled = true;
+
+        addLog(`▶ Mulai tracking (interval ${intervalMs / 1000}s)`);
+
+      } else {
+        // STOP
+        isTracking = false;
+
+        if (watchId) navigator.geolocation.clearWatch(watchId);
+        if (sendInterval) clearInterval(sendInterval);
+        watchId = null;
+        sendInterval = null;
+
+        setStatus('idle', 'Berhenti');
+        toggleBtn.textContent = '▶ Mulai Kirim GPS';
+        toggleBtn.className = 'btn btn-start';
+        vehicleInput.disabled = false;
+
+        addLog('⏹ Tracking dihentikan');
+      }
+    };
+
+    // ===== HELPERS =====
+    function setStatus(type, text) {
+      statusBar.className = `status-bar status-${type}`;
+      statusText.textContent = text;
+    }
+
+    function addLog(msg, type = '') {
+      const time = new Date().toLocaleTimeString('id-ID');
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type ? 'log-' + type : ''}`;
+      entry.textContent = `[${time}] ${msg}`;
+      logDiv.prepend(entry);
+
+      // Keep max 50 entries
+      while (logDiv.children.length > 50) {
+        logDiv.removeChild(logDiv.lastChild);
+      }
+    }
+  </script>
+
+</body>
+
+</html>
