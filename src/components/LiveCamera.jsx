@@ -1,12 +1,12 @@
-import { useState, useEffect, useRef } from 'react';
-import { Camera, Wifi, WifiOff, Radio, RefreshCw, Play, Pause, SkipForward, Maximize } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { Camera, Wifi, WifiOff, Radio, RefreshCw, Play, Pause, SkipForward, Maximize, Mic, MicOff, CameraIcon } from 'lucide-react';
 import AgoraRTC from 'agora-rtc-sdk-ng';
 
 // ============ AGORA CONFIG ============
 const AGORA_APP_ID = 'e8ef6a61f09d46f7bc9c4bf7d6bb23e3';
 const AGORA_CHANNEL = 'TRK-07_camera';
 
-export default function LiveCamera() {
+const LiveCamera = forwardRef(function LiveCamera({ onScreenshotReady }, ref) {
   const videoRef = useRef(null);
   const clientRef = useRef(null);
   const [connected, setConnected] = useState(false);
@@ -15,6 +15,12 @@ export default function LiveCamera() {
   const [remoteUser, setRemoteUser] = useState(null);
   const [retryCount, setRetryCount] = useState(0);
 
+  // === AUDIO STATE (Fitur 6) ===
+  const [audioActive, setAudioActive] = useState(false);
+  const [audioConnecting, setAudioConnecting] = useState(false);
+  const localAudioTrackRef = useRef(null);
+  const remoteAudioUserRef = useRef(null);
+
   // Initialize Agora client
   useEffect(() => {
     let cancelled = false;
@@ -22,7 +28,7 @@ export default function LiveCamera() {
     client.setClientRole('audience');
     clientRef.current = client;
 
-    // When a remote user publishes video
+    // When a remote user publishes video/audio
     client.on('user-published', async (user, mediaType) => {
       if (cancelled) return;
       await client.subscribe(user, mediaType);
@@ -35,6 +41,16 @@ export default function LiveCamera() {
           videoTrack.play(videoRef.current);
         }
       }
+
+      if (mediaType === 'audio') {
+        // Auto-play remote audio (from camera device)
+        const audioTrack = user.audioTrack;
+        if (audioTrack) {
+          audioTrack.play();
+          remoteAudioUserRef.current = user;
+          console.log('[Agora] 🔊 Remote audio playing from user:', user.uid);
+        }
+      }
     });
 
     client.on('user-unpublished', (user, mediaType) => {
@@ -42,14 +58,18 @@ export default function LiveCamera() {
       if (mediaType === 'video') {
         setRemoteUser(null);
       }
+      if (mediaType === 'audio') {
+        remoteAudioUserRef.current = null;
+      }
     });
 
     client.on('user-left', (user) => {
       console.log('[Agora] User left:', user.uid);
       setRemoteUser(null);
+      remoteAudioUserRef.current = null;
     });
 
-    // Auto-join on mount (with guard for React strict mode)
+    // Auto-join on mount
     (async () => {
       if (cancelled) return;
       setConnecting(true);
@@ -73,6 +93,12 @@ export default function LiveCamera() {
 
     return () => {
       cancelled = true;
+      // Cleanup audio track if active
+      if (localAudioTrackRef.current) {
+        localAudioTrackRef.current.stop();
+        localAudioTrackRef.current.close();
+        localAudioTrackRef.current = null;
+      }
       client.leave().catch(() => {});
     };
   }, [retryCount]);
@@ -83,8 +109,103 @@ export default function LiveCamera() {
     }
     setConnected(false);
     setRemoteUser(null);
+    setAudioActive(false);
     setRetryCount((c) => c + 1);
   };
+
+  // === SCREENSHOT FUNCTION (Fitur 5) ===
+  const captureScreenshot = useCallback(() => {
+    console.log('[Screenshot] Capturing...');
+    
+    // Try to get video element from the Agora container
+    const videoContainer = videoRef.current;
+    if (!videoContainer) {
+      console.error('[Screenshot] No video container');
+      return;
+    }
+
+    const videoElement = videoContainer.querySelector('video');
+    if (!videoElement) {
+      console.error('[Screenshot] No video element found');
+      // Fallback: capture the container as-is
+      return;
+    }
+
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = videoElement.videoWidth || 1280;
+      canvas.height = videoElement.videoHeight || 720;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+      // Add timestamp overlay
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillRect(0, canvas.height - 30, canvas.width, 30);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '14px monospace';
+      ctx.fillText(
+        `RESCUE TRK-07 | ${new Date().toLocaleString('id-ID')}`,
+        10,
+        canvas.height - 10
+      );
+
+      const dataUrl = canvas.toDataURL('image/png');
+      console.log('[Screenshot] ✅ Captured successfully');
+
+      if (onScreenshotReady) {
+        onScreenshotReady(dataUrl);
+      }
+    } catch (err) {
+      console.error('[Screenshot] Error capturing:', err);
+    }
+  }, [onScreenshotReady]);
+
+  // Expose captureScreenshot to parent via ref
+  useImperativeHandle(ref, () => ({
+    captureScreenshot,
+  }));
+
+  // === AUDIO TOGGLE (Fitur 6: Push-to-Talk) ===
+  const toggleAudio = useCallback(async () => {
+    const client = clientRef.current;
+    if (!client || !connected) return;
+
+    if (audioActive) {
+      // Stop audio — switch back to audience
+      try {
+        if (localAudioTrackRef.current) {
+          await client.unpublish(localAudioTrackRef.current);
+          localAudioTrackRef.current.stop();
+          localAudioTrackRef.current.close();
+          localAudioTrackRef.current = null;
+        }
+        await client.setClientRole('audience');
+        setAudioActive(false);
+        console.log('[Audio] 🔇 Mic OFF — switched to audience');
+      } catch (err) {
+        console.error('[Audio] Stop error:', err);
+      }
+    } else {
+      // Start audio — switch to host and publish mic
+      setAudioConnecting(true);
+      try {
+        await client.setClientRole('host');
+        const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+        localAudioTrackRef.current = audioTrack;
+        await client.publish(audioTrack);
+        setAudioActive(true);
+        console.log('[Audio] 🎙️ Mic ON — broadcasting to channel');
+      } catch (err) {
+        console.error('[Audio] Start error:', err);
+        // Revert to audience on error
+        try {
+          await client.setClientRole('audience');
+        } catch (_) {}
+      } finally {
+        setAudioConnecting(false);
+      }
+    }
+  }, [connected, audioActive]);
 
   return (
     <div className="w-full h-full bg-black relative overflow-hidden">
@@ -126,6 +247,14 @@ export default function LiveCamera() {
         </div>
       )}
 
+      {/* Audio indicator — top left below REC */}
+      {audioActive && (
+        <div className="absolute top-10 left-4 flex items-center gap-1.5 z-20">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-[10px] font-bold text-emerald-400 tracking-wider">🎙️ AUDIO AKTIF</span>
+        </div>
+      )}
+
       {/* Channel info — top right */}
       <div className="absolute top-4 right-4 z-20">
         <span className="text-[10px] font-mono text-white/40 bg-black/50 px-2 py-1 rounded backdrop-blur-sm">
@@ -151,6 +280,35 @@ export default function LiveCamera() {
         >
           <RefreshCw className={`w-3 h-3 text-white/60 ${connecting ? 'animate-spin' : ''}`} />
         </button>
+
+        {/* Separator */}
+        <div className="w-px h-5 bg-white/10" />
+
+        {/* Screenshot button (Fitur 5) */}
+        <button
+          onClick={captureScreenshot}
+          className="w-8 h-8 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 flex items-center justify-center transition-colors cursor-pointer backdrop-blur-sm"
+          title="Screenshot kamera"
+        >
+          <CameraIcon className="w-3.5 h-3.5 text-cyan-400" />
+        </button>
+
+        {/* Audio toggle button (Fitur 6) */}
+        <button
+          onClick={toggleAudio}
+          disabled={audioConnecting || !connected}
+          className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer backdrop-blur-sm border ${
+            audioActive
+              ? 'bg-emerald-500/30 border-emerald-500/40 shadow-lg shadow-emerald-500/20 animate-pulse'
+              : 'bg-white/10 hover:bg-white/20 border-white/10'
+          } ${audioConnecting ? 'opacity-50' : ''} ${!connected ? 'opacity-30 cursor-not-allowed' : ''}`}
+          title={audioActive ? 'Matikan mikrofon' : 'Aktifkan mikrofon (Push-to-Talk)'}
+        >
+          {audioActive
+            ? <Mic className="w-3.5 h-3.5 text-emerald-400" />
+            : <MicOff className="w-3.5 h-3.5 text-white/60" />
+          }
+        </button>
       </div>
 
       {/* Fullscreen button — bottom right (above map) */}
@@ -171,4 +329,6 @@ export default function LiveCamera() {
       )}
     </div>
   );
-}
+});
+
+export default LiveCamera;

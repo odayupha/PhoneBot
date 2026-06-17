@@ -137,3 +137,102 @@ input[type="range"]::-moz-range-thumb {
 .leaflet-popup-close-button:hover {
   color: white !important;
 }
+
+/* Route trail glow layer — non-interactive so it doesn't block map clicks */
+.leaflet-overlay-pane svg path[stroke-opacity="0.15"] {
+  pointer-events: none !important;
+}
+
+/* Clear History button animation */
+.clear-history-btn {
+  transition: all 0.2s ease;
+}
+
+.clear-history-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+}
+
+.clear-history-btn:active {
+  transform: translateY(0);
+}
+
+/* ============================================================
+   Google Maps-style GPS Navigation Marker
+   ============================================================ */
+
+/* Pulsing ring around GPS marker */
+@keyframes gps-pulse-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  70% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+/* Subtle breathing effect for the marker core */
+@keyframes gps-core-breathe {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(66, 133, 244, 0.5), 0 0 16px rgba(66, 133, 244, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(66, 133, 244, 0.7), 0 0 24px rgba(66, 133, 244, 0.3);
+  }
+}
+
+/* GPS marker container — smooth position & rotation transitions */
+.gps-marker-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* The pulse ring element */
+.gps-marker-pulse {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: rgba(66, 133, 244, 0.3);
+  animation: gps-pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* The core dot */
+.gps-marker-core {
+  position: relative;
+  border-radius: 50%;
+  background: #4285F4;
+  border: 3px solid white;
+  animation: gps-core-breathe 3s ease-in-out infinite;
+  z-index: 2;
+}
+
+/* Directional arrow (chevron) */
+.gps-direction-arrow {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform-origin: bottom center;
+  z-index: 1;
+  transition: transform 0.6s cubic-bezier(0.25, 0.1, 0.25, 1);
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.3));
+}
+
+/* Leaflet marker smooth transition for animated movement */
+.leaflet-marker-animated {
+  transition: transform 0.8s cubic-bezier(0.25, 0.1, 0.25, 1) !important;
+}
+
+/* Route trail gradient segments — older parts are more transparent */
+.leaflet-overlay-pane svg path.route-trail-gradient {
+  pointer-events: none !important;
+}
+
